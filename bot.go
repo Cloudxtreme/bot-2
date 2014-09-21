@@ -15,6 +15,8 @@ import (
 	"log"
 	"encoding/json"
 	"github.com/kennygrant/sanitize"
+	"runtime"
+	"strconv"
 )
 
 type Bot struct {
@@ -139,9 +141,13 @@ func (bot *Bot) ParseLine(line string) {
 
 		switch command[0] {
 			case ".g":
-				bot.google(query, channel)
+				bot.Google(query, channel)
+			case ".gv":
+				bot.GoVersion(channel)
+			case ".usage":
+				bot.MemoryUsage(channel)
 			default:
-				bot.help(query, channel)		
+				bot.Help(query, channel)		
 		}
 	} else if strings.HasPrefix(info, "JOIN") && nickname == "Pent" {
 		bot.SendCommand("MODE", "+o", channel, nickname)
@@ -149,16 +155,16 @@ func (bot *Bot) ParseLine(line string) {
 		if strings.Contains(message, "hi "+bot.nick) {
 			bot.SendMessage("Hi there "+nickname, channel)
 		} else { 
-			bot.chatter(message, channel)
+			bot.Chatter(message, channel)
 		}
 	}
 }
 
 
-func (bot *Bot) help(query, channel string) {
+func (bot *Bot) Help(query, channel string) {
 }
 
-func (bot *Bot) google(query, channel string) {
+func (bot *Bot) Google(query, channel string) {
 		r, err := http.Get("http://ajax.googleapis.com/ajax/services/search/web?v=1.0&rsz=1&q="+query)
 		defer r.Body.Close()
 
@@ -188,12 +194,25 @@ func (bot *Bot) google(query, channel string) {
 		//output results to channel
 		for _, item := range google.ResponseData.Results {
 			//fixme: sending commands
-			var content = sanitize.Accents(sanitize.HTML(item.Content))
+			content := sanitize.Accents(sanitize.HTML(item.Content))
 			bot.SendMessage(item.TitleNoFormatting+" "+item.URL+" "+content, channel)
 		}
 }
 
-func (bot *Bot) chatter(message, channel string) {
+func (bot *Bot) MemoryUsage(channel string) {
+var m *runtime.MemStats = new(runtime.MemStats)
+    runtime.ReadMemStats(m)
+    allocated := float64(m.Alloc) / 1024 / 1024;
+    stack := float64(m.StackInuse) / 1024 / 1024;
+    heap := float64(m.HeapAlloc) / 1024 / 1024;
+    fmt.Fprintf(bot.conn, "PRIVMSG "+channel+" : Memory- Allocated: " + strconv.FormatFloat(allocated, 'f', 2, 64) +"mb, Stack: "+ strconv.FormatFloat(stack, 'f', 2, 64) +"mb, Heap: "+ strconv.FormatFloat(heap, 'f', 2, 64)+"mb\r\n")
+}
+
+func (bot *Bot) GoVersion(channel string) {
+	bot.SendMessage(runtime.Version(), channel)
+}
+
+func (bot *Bot) Chatter(message, channel string) {
 }
 
 //capitalized variable names will export the struct
@@ -231,7 +250,7 @@ func main() {
 	go ircbot.ReadConsoleInput()
 	//goroutine to read lines from irc connection 
 	go ircbot.ReadRawInput()
-	//push this call into a list, that list is executed ater the surrounding function returns (program exits)
+	//push this call into a stack, that stack is executed ater the surrounding function returns (program exits)
 	defer ircbot.conn.Close()
 
 	//hold main running until quit
