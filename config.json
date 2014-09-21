@@ -1,0 +1,6 @@
+{
+	"server": "irc.freenode.net",
+	"port": "6667",
+	"nickname": "gh0stb0t",
+	"channels": ["#0_o"]
+}

@@ -39,9 +39,7 @@ func NewBot(server string, port string, nick string, channels []string) *Bot {
 	}
 }
 
-//return error
 func (bot *Bot) Connect() {
-	//fixme: hangs script on server connection refusal
 	fmt.Printf("Connecting...\n")
 	host := bot.server + ":" + bot.port
 	if s, err := net.Dial("tcp", host); err == nil {
@@ -63,21 +61,22 @@ func (bot *Bot) Connect() {
 	}
 }
 
-func(bot *Bot) sendCommand(command string, commandArgs string, channel string, users string) {
+//send a raw irc command
+func(bot *Bot) SendCommand(command string, commandArgs string, channel string, users string) {
 	fmt.Println(command + " " + channel + " " + commandArgs + " " + users)
-	fmt.Fprintf(bot.conn, command + " " + channel + " " + commandArgs + " " + users+"\r\n")
+	fmt.Fprintf(bot.conn, command + " " + channel + " " + commandArgs + " " + users + "\r\n")
 }
 
 //bot output to channel 
-func (bot *Bot) Message(message string, channel string) {
+func (bot *Bot) SendMessage(message string, channel string) {
 	if message == "" {
 		return
 	}
 	fmt.Fprintf(bot.conn, "PRIVMSG "+channel+" :"+message+"\r\n")
 }
 
-//allows you to issue commands and chat from the console
-func (bot *Bot) ConsoleInput() {
+//allows you to issue raw irc commands from the console
+func (bot *Bot) ReadConsoleInput() {
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		line, err := reader.ReadString('\n')
@@ -85,11 +84,12 @@ func (bot *Bot) ConsoleInput() {
 			break
 		}
 
-		bot.Message(line, bot.channels[0])
+		fmt.Fprintf(bot.conn, line + "\r\n")
 	}
 }
 
-func (bot *Bot) RawInput() {
+//receive raw irc responses from irc server
+func (bot *Bot) ReadRawInput() {
 	//instantiate new buffered reader out of the network connection
 	reader := bufio.NewReader(bot.conn)
 	//instantiate a new textproto reader that reads requests/responses from a "text protocol" network connection
@@ -106,6 +106,7 @@ func (bot *Bot) RawInput() {
 	}
 }
 
+//do something with the raw server response
 func (bot *Bot) ParseLine(line string) {
 	//echo line 
 	fmt.Println(line)
@@ -115,8 +116,6 @@ func (bot *Bot) ParseLine(line string) {
 	if parts == nil {
 		return
 	}
-
-	//send line data into a channel, have functions read the channel and do things
 
 	//respond to pings
 	if parts[2] == "PING" {
@@ -145,10 +144,10 @@ func (bot *Bot) ParseLine(line string) {
 				bot.help(query, channel)		
 		}
 	} else if strings.HasPrefix(info, "JOIN") && nickname == "Pent" {
-		bot.sendCommand("MODE", "+o", channel, nickname)
+		bot.SendCommand("MODE", "+o", channel, nickname)
 	} else {
 		if strings.Contains(message, "hi "+bot.nick) {
-			bot.Message("Hi there "+nickname, channel)
+			bot.SendMessage("Hi there "+nickname, channel)
 		} else { 
 			bot.chatter(message, channel)
 		}
@@ -190,7 +189,7 @@ func (bot *Bot) google(query, channel string) {
 		for _, item := range google.ResponseData.Results {
 			//fixme: sending commands
 			var content = sanitize.Accents(sanitize.HTML(item.Content))
-			bot.Message(item.TitleNoFormatting+" "+item.URL+" "+content, channel)
+			bot.SendMessage(item.TitleNoFormatting+" "+item.URL+" "+content, channel)
 		}
 }
 
@@ -229,9 +228,9 @@ func main() {
 	//call Dial() on the net lib to connect to irc server, and more
 	ircbot.Connect()
 	//goroutine to run a console input for the bot
-	go ircbot.ConsoleInput()
+	go ircbot.ReadConsoleInput()
 	//goroutine to read lines from irc connection 
-	go ircbot.RawInput()
+	go ircbot.ReadRawInput()
 	//push this call into a list, that list is executed ater the surrounding function returns (program exits)
 	defer ircbot.conn.Close()
 
